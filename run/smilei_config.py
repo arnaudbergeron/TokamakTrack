@@ -10,25 +10,27 @@ TkeV = 10.						# electron & ion temperature in keV
 T   = TkeV/511.   				# electron & ion temperature in me c^2
 n0  = 1.
 Lde = m.sqrt(T)					# Debye length in units of c/\omega_{pe}
-dx  = 1 				# cell length (same in x & y)
+dx  = 0.5 				# cell length (same in x & y)
 dy  = dx
-dz  = 0.1
-dt  = 0.95 * dx/m.sqrt(3.)		# timestep (0.95 x CFL)
+dz  = dx
+dt  = (0.95 * dx/m.sqrt(3.))/2		# timestep (0.95 x CFL)
 
 Lx    = 32
 Ly    = 32
 Lz    = 10
-Tsim  = m.pi/2			
+Tsim  = m.pi*2/2
 
 x_shift = 15
 y_shift = 15
 z_shift = 5
 
-B_multiplier = 5
+b_multiplier = 1
+solenoid_factor = 6
+momentum_multiplier = 500
 
 position_field = np.load('data/input_data/data_coordinates.npy')
-toroidal_field = np.load('data/input_data/B_field_Solenoid.npy')
-solenoid_field = np.load('data/input_data/B_field_Toroidal.npy')
+toroidal_field = np.load('data/input_data/B_field_Toroidal.npy')
+solenoid_field = np.load('data/input_data/B_field_Solenoid.npy')
 
 position_field[:, 0] = position_field[:, 0]
 position_field[:, 1] = position_field[:, 1]
@@ -61,12 +63,12 @@ def create_initial_positions(r, discretized_pos):
     # Create a list of N positions
     positions =  np.zeros((4, N))
     #make a list of 1,2,3,4,5,...
-    theta = np.linspace(0, np.pi, N)
+    theta = np.linspace(0, 2*np.pi, N)
 
     positions[0,:] = r*np.cos(theta) + x_shift
     positions[1,:] = r*np.sin(theta) + y_shift
     positions[2,:] = z_shift
-    positions[3,:] = 0.5
+    positions[3,:] = 0.25
 
     # find index of the closest positions in the discretized field
     discretized_initial_pos = []
@@ -87,44 +89,43 @@ def create_initial_positions(r, discretized_pos):
     
     discretized_initial_pos = discretized_initial_pos.T
 
+    tengential_momentum = tengential_momentum*momentum_multiplier
     return discretized_initial_pos, tengential_momentum
 
 	
 def time_evolution(b_sol, t):
-	return b_sol*t
+	return b_sol * solenoid_factor # * (t)
 
 def get_bx(x,y,z,t):
 	#change for variable time
-    if x > 30 or y >30:
-         return 0
+    if x<0 or y<0 or z<0 or z >= Lz or x >= Lx or y >= Ly:
+        return 0
     x, y, z = round(x,3), round(y,3), round(z,3)
     b_tor = df.loc[(x,y,z)]['B_tor_x']
     b_sol = df.loc[(x,y,z)]['B_sol_x']
-    return (b_tor + time_evolution(b_sol, t))*B_multiplier
+    return (b_tor + time_evolution(b_sol, t))*b_multiplier
 
 
 def get_by(x,y,z,t):
-    if x > 30 or y >30:
+    if x<0 or y<0 or z<0 or z >= Lz or x >= Lx or y >= Ly:
         return 0
     x, y, z = round(x,3), round(y,3), round(z,3)
     b_tor = df.loc[(x,y,z)]['B_tor_y']
     b_sol = df.loc[(x,y,z)]['B_sol_y']
     
-    return (b_tor + time_evolution(b_sol, t))*B_multiplier
+    return (b_tor + time_evolution(b_sol, t))*b_multiplier
 
 
 def get_bz(x,y,z,t):
-
-    if x > 30 or y >30:
+    if x<0 or y<0 or z<0 or z >= Lz or x >= Lx or y >= Ly:
         return 0
-    
     x, y, z = round(x,3), round(y,3), round(z,3)
     b_tor = df.loc[(x,y,z)]['B_tor_z']
     b_sol = df.loc[(x,y,z)]['B_sol_z']
     
-    return (b_tor + time_evolution(b_sol, t))*B_multiplier
+    return (b_tor + time_evolution(b_sol, t))*b_multiplier
 	
-init_pos, init_mom = create_initial_positions(1, position_field)
+init_pos, init_mom = create_initial_positions(10, position_field)
 
 Main(
     geometry = "3Dcartesian",
@@ -137,9 +138,9 @@ Main(
     cell_length  = [dx,dy,dz],
     grid_length = [Lx,Ly,Lz],
     
-    number_of_patches = [4,4,2],
+    number_of_patches = [8,8,2],
     
-    EM_boundary_conditions = [ ["periodic"] ],
+    EM_boundary_conditions = [ ["periodic"],["periodic"],["periodic"] ],
     
     print_every = 1,
 
@@ -158,7 +159,8 @@ Species(
     momentum_initialization = init_mom,
     # particles_per_cell = 8, 
     c_part_max = 1.0,
-    mass = 1836.0,
+    # mass = 1836.0,
+    mass = 1,
     charge = 1.0,
     # charge_density = 1,
     # mean_velocity = [0., 0.0, 0.0],
@@ -207,10 +209,9 @@ DiagParticleBinning(
     every = 1,
     time_average = 1,
     species = ["proton"],
-    axes = [["x", 0, Lx, 2*Lx/dx],
-            ["y", 0, Ly, 2*Ly/dy],
-            #["z", -Lz, Lz, 2*Lz/dz]
-            ],
+    axes = [["x", 0, 30, 2*Lx/dx],
+            ["y", 0, 30, 2*Ly/dy],
+            ["z", 4, 6, 2]],
 )
 
 PrescribedField(
