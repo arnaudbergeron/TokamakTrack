@@ -641,7 +641,7 @@ smilei_rand_max = 2**31-1
 # Variable to set to False for the actual run (useful for the test mode)
 _test_mode = True
 smilei_version='4.8-1-g0293ceb2b-master'
-smilei_mpi_size = 4
+smilei_mpi_size = 6
 smilei_rand_max = 2147483647
 
 # Some predefined profiles (see doc)
@@ -1473,18 +1473,19 @@ dy  = dx
 dz  = dx
 dt  = (0.95 * dx/m.sqrt(3.))/2		# timestep (0.95 x CFL)
 
+p_mass = 1836.0
 Lx    = 32
 Ly    = 32
 Lz    = 10
-Tsim  = m.pi*2/2
+Tsim  = m.pi*8
 
 x_shift = 15
 y_shift = 15
 z_shift = 5
 
-b_multiplier = 1
-solenoid_factor = 6
-momentum_multiplier = 500
+b_multiplier = 10
+solenoid_factor = 27
+momentum_multiplier = 5
 
 position_field = np.load('data/input_data/data_coordinates.npy')
 toroidal_field = np.load('data/input_data/B_field_Toroidal.npy')
@@ -1521,7 +1522,7 @@ def create_initial_positions(r, discretized_pos):
     # Create a list of N positions
     positions =  np.zeros((4, N))
     #make a list of 1,2,3,4,5,...
-    theta = np.linspace(0, 2*np.pi, N)
+    theta = np.linspace(0, np.pi, N)
 
     positions[0,:] = r*np.cos(theta) + x_shift
     positions[1,:] = r*np.sin(theta) + y_shift
@@ -1585,11 +1586,13 @@ def get_bz(x,y,z,t):
 	
 init_pos, init_mom = create_initial_positions(10, position_field)
 
+
+
 Main(
     geometry = "3Dcartesian",
     
     interpolation_order = 2,
-    
+    reference_angular_frequency_SI = 2.*m.pi*3e8,
     timestep = dt,
     simulation_time = Tsim,
     
@@ -1613,12 +1616,11 @@ LoadBalancing(
 
 Species(
     name = "proton",
+    mass = p_mass,
     position_initialization = init_pos,
-    momentum_initialization = init_mom,
+    momentum_initialization = init_mom*p_mass,
     # particles_per_cell = 8, 
     c_part_max = 1.0,
-    # mass = 1836.0,
-    mass = 1,
     charge = 1.0,
     # charge_density = 1,
     # mean_velocity = [0., 0.0, 0.0],
@@ -1669,7 +1671,7 @@ DiagParticleBinning(
     species = ["proton"],
     axes = [["x", 0, 30, 2*Lx/dx],
             ["y", 0, 30, 2*Ly/dy],
-            ["z", 4, 6, 2]],
+            ["z", 4, 6, 8]],
 )
 
 PrescribedField(
